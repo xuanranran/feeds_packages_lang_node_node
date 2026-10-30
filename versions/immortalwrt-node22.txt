@@ -1,0 +1,17 @@
+# Successfully published ImmortalWrt Node 22 package versions
+# architecture version
+aarch64_cortex-a53 22.23.3-r1
+aarch64_cortex-a72 22.23.4-r1
+aarch64_cortex-a76 22.23.3-r1
+aarch64_generic 22.23.3-r1
+arm_arm1176jzf-s_vfp 22.23.3-r1
+arm_cortex-a15_neon-vfpv4 22.23.4-r1
+arm_cortex-a5_vfpv4 22.23.3-r1
+arm_cortex-a7_neon-vfpv4 22.23.3-r1
+arm_cortex-a7_vfpv4 22.23.4-r1
+arm_cortex-a8_vfpv3 22.23.3-r1
+arm_cortex-a9_neon 22.23.4-r1
+arm_cortex-a9_vfpv3-d16 22.23.3-r1
+i386_pentium-mmx 22.23.4-r1
+i386_pentium4 22.23.4-r1
+x86_64 22.23.3-r1

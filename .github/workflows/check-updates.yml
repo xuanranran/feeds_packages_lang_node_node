@@ -1,0 +1,34 @@
+name: Check Node prebuilt updates
+on:
+  schedule:
+    - cron: '23 20 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: node-update-check
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@main
+      - name: Test discovery helpers
+        run: python3 -m unittest discover -s tests -v
+      - name: Compare upstream versions with records and releases
+        id: check
+        run: python3 scripts/discover.py
+      - name: Trigger sync only when updates are available
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NXHACK_RELEASE: ${{ steps.check.outputs.nxhack_release }}
+        run: |
+          active=$(gh run list --workflow sync.yml --branch main --limit 100 --json status --jq '[.[] | select(.status != "completed")] | length')
+          if [[ "$active" != 0 ]]; then
+            echo "A sync is already queued or running; skip duplicate dispatch."
+            exit 0
+          fi
+          gh workflow run sync.yml --ref main -f "nxhack_release=$NXHACK_RELEASE"

@@ -1,0 +1,84 @@
+name: Sync Node prebuilt APKs
+on:
+  workflow_dispatch:
+    inputs:
+      nxhack_release:
+        description: Optional stable OpenWrt release; empty selects latest complete Node 24 source
+        required: false
+        default: ''
+permissions:
+  contents: write
+concurrency:
+  group: node-mirror
+  cancel-in-progress: false
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      nxhack_release: ${{ steps.select.outputs.nxhack_release }}
+    steps:
+      - uses: actions/checkout@main
+      - name: Select complete nxhack release
+        id: select
+        env:
+          NXHACK_RELEASE: ${{ inputs.nxhack_release }}
+        run: python3 scripts/discover.py --select-only --release "$NXHACK_RELEASE"
+  verify:
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        provider: [immortalwrt, nxhack]
+    steps:
+      - uses: actions/checkout@main
+      - name: Check helpers
+        run: |
+          python3 -m unittest discover -s tests -v
+          bash -n scripts/verify-apks.sh
+      - name: Download original APKs
+        env:
+          NXHACK_RELEASE: ${{ needs.discover.outputs.nxhack_release }}
+        run: python3 scripts/sync.py --provider "${{ matrix.provider }}" --nxhack-release "$NXHACK_RELEASE"
+      - uses: docker/setup-qemu-action@master
+        with:
+          platforms: all
+      - name: Verify all architectures
+        run: bash scripts/verify-apks.sh dist "${{ matrix.provider }}"
+      - uses: actions/upload-artifact@main
+        with:
+          name: mirror-${{ matrix.provider }}
+          path: |
+            dist/*.tar.gz
+            dist/manifest.json
+            dist/SHA256SUMS
+          if-no-files-found: error
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: actions/download-artifact@main
+        with:
+          pattern: mirror-*
+          path: artifacts
+      - name: Update exactly two releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish.py artifacts
+      - name: Record successfully published ImmortalWrt versions
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          python3 scripts/versions.py --manifest artifacts/mirror-immortalwrt/manifest.json
+          git add versions/immortalwrt-node22.txt
+          if git diff --cached --quiet; then
+            echo "Published versions unchanged."
+            exit 0
+          fi
+          git config user.name "Lovin Yarn"
+          git config user.email "juanshengyuan@gmail.com"
+          git commit -s -m "node: record published ImmortalWrt Node 22 versions"
+          git push origin HEAD:main
